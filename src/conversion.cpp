@@ -9,6 +9,7 @@ namespace netcourse {
 
 namespace {
 
+// Переводит модуль числа в двоичную форму фиксированной длины.
 std::string toMagnitudeBinary(long long value, int width) {
     std::string result(static_cast<std::size_t>(width), '0');
     for (int i = width - 1; i >= 0; --i) {
@@ -18,6 +19,7 @@ std::string toMagnitudeBinary(long long value, int width) {
     return result;
 }
 
+// Формирует обратный код инверсией всех битов модуля.
 std::string invertBits(std::string bits) {
     for (char& bit : bits) {
         bit = (bit == '0') ? '1' : '0';
@@ -25,6 +27,7 @@ std::string invertBits(std::string bits) {
     return bits;
 }
 
+// Прибавляет единицу к обратному коду для получения дополнительного кода.
 std::string addOne(std::string bits) {
     for (int i = static_cast<int>(bits.size()) - 1; i >= 0; --i) {
         if (bits[static_cast<std::size_t>(i)] == '0') {
@@ -39,6 +42,7 @@ std::string addOne(std::string bits) {
 }  // namespace
 
 ConversionResult convertToCodes(long long number, int bits) {
+    // Проверка допустимой разрядности входного числа.
     if (bits < 2 || bits > 63) {
         throw std::runtime_error("Bit width must be in range 2..63");
     }
@@ -48,6 +52,8 @@ ConversionResult convertToCodes(long long number, int bits) {
         throw std::runtime_error("Number does not fit selected bit width");
     }
 
+    // Для положительных чисел обратный и дополнительный код совпадают
+    // со стандартным двоичным представлением со знаковым нулем.
     const auto magnitude = (number < 0) ? -number : number;
     const std::string magnitudeBits = toMagnitudeBinary(magnitude, bits - 1);
 
@@ -56,6 +62,9 @@ ConversionResult convertToCodes(long long number, int bits) {
         return ConversionResult{value, value};
     }
 
+    // Для отрицательных чисел:
+    // 1) обратный код = знаковый бит 1 + инверсия битов модуля;
+    // 2) дополнительный код = обратный код + 1.
     const std::string reverse = "1" + invertBits(magnitudeBits);
     const std::string additional = addOne(reverse);
     return ConversionResult{reverse, additional};

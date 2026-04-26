@@ -3,9 +3,16 @@
 #include <iostream>
 #include <string>
 
+// Точка входа серверной программы.
+// Из аргументов командной строки могут быть переданы:
+// 1) порт;
+// 2) путь к файлу базы пользователей;
+// 3) путь к файлу журнала.
 int main(int argc, char* argv[]) {
     netcourse::ServerConfig config;
 
+    // При отсутствии аргументов используются значения по умолчанию
+    // из структуры ServerConfig.
     if (argc > 1) {
         config.port = std::stoi(argv[1]);
     }
@@ -16,6 +23,7 @@ int main(int argc, char* argv[]) {
         config.log_path = argv[3];
     }
 
+    // Сообщение в консоль показывает, что сервер готов ожидать подключения.
     std::cout << "Server listening on " << config.host << ':' << config.port << '\n';
     netcourse::ServerApp server(config);
     return server.run();

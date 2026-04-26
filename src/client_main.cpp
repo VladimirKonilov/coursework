@@ -6,6 +6,7 @@
 
 namespace {
 
+// Унифицированный ввод строкового значения из консоли клиента.
 std::string readText(const std::string& prompt) {
     std::cout << prompt;
     std::string value;
@@ -13,6 +14,8 @@ std::string readText(const std::string& prompt) {
     return value;
 }
 
+// Ввод целого числа, которое затем будет переведено сервером
+// в обратный и дополнительный код.
 long long readNumber(const std::string& prompt) {
     while (true) {
         try {
@@ -23,6 +26,7 @@ long long readNumber(const std::string& prompt) {
     }
 }
 
+// Ввод разрядности двоичного представления числа.
 int readInt(const std::string& prompt) {
     while (true) {
         try {
@@ -33,6 +37,7 @@ int readInt(const std::string& prompt) {
     }
 }
 
+// Отображение результата выполнения команды прикладного протокола.
 void printResponse(const netcourse::Response& response) {
     if (response.ok) {
         std::cout << "Успех: " << response.message << '\n';
@@ -49,11 +54,16 @@ int main(int argc, char* argv[]) {
 
     try {
         netcourse::ClientConnection client(host, port);
+        // Подключение клиента к серверу по TCP.
         client.connectToServer();
 
         std::cout << "Соединение с сервером установлено.\n";
+        // Пока пользователь не прошел регистрацию или вход,
+        // сервер не разрешает выполнять команду CALC.
         bool authenticated = false;
         while (!authenticated) {
+            // Клиент предоставляет два режима, требуемые ТЗ:
+            // регистрация нового пользователя и вход существующего.
             std::cout << "1 - регистрация\n2 - вход\n0 - выход\n";
             const std::string choice = readText("Выберите действие: ");
             if (choice == "0") {
@@ -66,8 +76,10 @@ int main(int argc, char* argv[]) {
 
             netcourse::Response response{};
             if (choice == "1") {
+                // Сценарий регистрации нового пользователя.
                 response = client.registerUser(username, password);
             } else if (choice == "2") {
+                // Сценарий входа уже существующего пользователя.
                 response = client.login(username, password);
             } else {
                 std::cout << "Неизвестная команда.\n";
@@ -79,22 +91,29 @@ int main(int argc, char* argv[]) {
         }
 
         while (true) {
+            // Клиент обеспечивает ввод числа и разрядности,
+            // затем отправляет их на сервер.
             const long long number = readNumber("Введите число: ");
             const int bits = readInt("Введите разрядность: ");
             const auto response = client.calculate(number, bits);
             printResponse(response);
             if (response.ok && response.fields.size() >= 2) {
+                // Клиент отображает обратный и дополнительный код,
+                // полученные от серверной программы.
                 std::cout << "Обратный код: " << response.fields[0] << '\n';
                 std::cout << "Дополнительный код: " << response.fields[1] << '\n';
             }
 
             const std::string repeat = readText("Выполнить еще одно вычисление? (y/n): ");
             if (repeat != "y" && repeat != "Y") {
+                // Перед завершением клиент уведомляет сервер о закрытии сеанса.
                 client.quit();
                 break;
             }
         }
     } catch (const std::exception& ex) {
+        // Любые ошибки подключения, обмена или отказа сервера
+        // выводятся пользователю в явном виде.
         std::cerr << "Ошибка клиента: " << ex.what() << '\n';
         return 1;
     }

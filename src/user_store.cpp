@@ -10,6 +10,7 @@ namespace netcourse {
 
 namespace {
 
+// Простое хеширование пароля для хранения в файле без открытого текста.
 std::string fnv1a64(const std::string& input) {
     unsigned long long hash = 1469598103934665603ULL;
     for (unsigned char ch : input) {
@@ -25,12 +26,14 @@ std::string fnv1a64(const std::string& input) {
 }  // namespace
 
 UserStore::UserStore(std::string path) : path_(std::move(path)) {
+    // При старте сервера база пользователей загружается из файла.
     load();
 }
 
 bool UserStore::registerUser(const std::string& username, const std::string& password, std::string& error) {
     std::lock_guard<std::mutex> lock(mutex_);
 
+    // Проверка логина и пароля на корректность для текстового протокола.
     if (!isPrintableToken(username) || !isPrintableToken(password)) {
         error = "Username and password must not contain separators or control characters";
         return false;
@@ -40,6 +43,7 @@ bool UserStore::registerUser(const std::string& username, const std::string& pas
         return false;
     }
 
+    // После проверки пользователь сохраняется в постоянную базу.
     users_[username] = hashPassword(password);
     return save(error);
 }
@@ -47,6 +51,8 @@ bool UserStore::registerUser(const std::string& username, const std::string& pas
 bool UserStore::authenticate(const std::string& username, const std::string& password, std::string& error) {
     std::lock_guard<std::mutex> lock(mutex_);
 
+    // Аутентификация состоит из двух шагов:
+    // поиск пользователя и сравнение хеша пароля.
     const auto it = users_.find(username);
     if (it == users_.end()) {
         error = "User not found";
@@ -66,6 +72,7 @@ std::string UserStore::hashPassword(const std::string& password) const {
 bool UserStore::load() {
     std::lock_guard<std::mutex> lock(mutex_);
 
+    // Файл базы имеет простой формат "логин:хеш_пароля".
     users_.clear();
     std::ifstream input(path_);
     if (!input.is_open()) {
@@ -87,6 +94,7 @@ bool UserStore::load() {
 }
 
 bool UserStore::save(std::string& error) {
+    // Перед сохранением при необходимости создается каталог базы данных.
     std::filesystem::create_directories(std::filesystem::path(path_).parent_path());
 
     std::ofstream output(path_, std::ios::trunc);
@@ -95,6 +103,7 @@ bool UserStore::save(std::string& error) {
         return false;
     }
 
+    // База пользователей перезаписывается актуальным содержимым.
     for (const auto& [username, passwordHash] : users_) {
         output << username << ':' << passwordHash << '\n';
     }

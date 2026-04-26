@@ -14,6 +14,7 @@
 
 namespace {
 
+// Вспомогательный RAII-класс для запуска сервера в тесте.
 class ServerProcess {
 public:
     ServerProcess(std::string executable, int port, std::string userDb, std::string logFile)
@@ -49,6 +50,7 @@ private:
     pid_t pid_;
 };
 
+// Путь к серверному бинарному файлу внутри build-каталога.
 std::filesystem::path executablePath(const char* argv0, const std::string& fileName) {
     return std::filesystem::absolute(std::filesystem::path(argv0)).parent_path() / fileName;
 }
@@ -67,14 +69,17 @@ int main(int argc, char* argv[]) {
     std::filesystem::create_directories(tempDir);
 
     const int port = 9094;
+    // Базовый smoke-тест проверяет основной сценарий работы приложения.
     ServerProcess server(serverPath.string(), port, (tempDir / "users.db").string(), (tempDir / "server.log").string());
 
     netcourse::ClientConnection client("127.0.0.1", port);
     client.connectToServer();
+    // Проверка успешной регистрации.
     auto response = client.registerUser("user1", "pass1");
     assert(response.ok);
 
     response = client.calculate(-5, 8);
+    // Проверка правильности вычисления кодов для отрицательного числа.
     assert(response.ok);
     assert(response.fields.size() == 2);
     assert(response.fields[0] == "11111010");
@@ -83,6 +88,7 @@ int main(int argc, char* argv[]) {
 
     netcourse::ClientConnection badClient("127.0.0.1", port);
     badClient.connectToServer();
+    // Проверка ошибки при неверном пароле.
     response = badClient.login("user1", "wrong");
     assert(!response.ok);
     badClient.quit();
@@ -90,12 +96,14 @@ int main(int argc, char* argv[]) {
     netcourse::ClientConnection c1("127.0.0.1", port);
     netcourse::ClientConnection c2("127.0.0.1", port);
     netcourse::ClientConnection c3("127.0.0.1", port);
+    // Три клиента должны подключиться успешно.
     c1.connectToServer();
     c2.connectToServer();
     c3.connectToServer();
 
     netcourse::ClientConnection c4("127.0.0.1", port);
     try {
+        // Четвертый клиент обязан получить отказ, так как лимит равен 3.
         c4.connectToServer();
         assert(false);
     } catch (const std::exception& ex) {

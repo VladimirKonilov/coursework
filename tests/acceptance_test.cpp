@@ -17,6 +17,7 @@
 
 namespace {
 
+// Вспомогательный RAII-класс для запуска сервера в отдельном процессе.
 class ServerProcess {
 public:
     ServerProcess(std::string executable, int port, std::string userDb, std::string logFile)
@@ -52,10 +53,12 @@ private:
     pid_t pid_;
 };
 
+// Путь к нужному исполняемому файлу в каталоге сборки.
 std::filesystem::path executablePath(const char* argv0, const std::string& fileName) {
     return std::filesystem::absolute(std::filesystem::path(argv0)).parent_path() / fileName;
 }
 
+// Читает строку ответа сервера в формате прикладного протокола.
 std::string readLine(int socketFd) {
     std::string line;
     char ch = '\0';
@@ -73,6 +76,7 @@ std::string readLine(int socketFd) {
     }
 }
 
+// Отправка "сырого" сообщения нужна для проверки ошибок формата протокола.
 std::string sendRaw(const std::string& host, int port, const std::string& request) {
     const int socketFd = ::socket(AF_INET, SOCK_STREAM, 0);
     if (socketFd < 0) {
@@ -113,6 +117,7 @@ std::string sendRaw(const std::string& host, int port, const std::string& reques
     return response;
 }
 
+// Проверяет, что в файле содержится нужная запись.
 bool containsLineWith(const std::filesystem::path& file, const std::string& needle) {
     std::ifstream input(file);
     std::string line;
@@ -140,16 +145,19 @@ int main(int argc, char* argv[]) {
     const auto userDb = tempDir / "users.db";
     const auto logFile = tempDir / "server.log";
     const int port = 9095;
+    // Приемочный тест покрывает ключевые требования ТЗ и ошибки обмена.
     ServerProcess server(serverPath.string(), port, userDb.string(), logFile.string());
 
     netcourse::ClientConnection client("127.0.0.1", port);
     client.connectToServer();
 
+    // CALC до аутентификации должен быть запрещен.
     auto response = client.calculate(7, 8);
     assert(!response.ok);
     assert(response.code == "NOT_AUTHENTICATED");
 
     response = client.registerUser("user2", "pass2");
+    // После регистрации должны быть доступны вычисления.
     assert(response.ok);
 
     response = client.calculate(5, 8);
@@ -158,12 +166,14 @@ int main(int argc, char* argv[]) {
     assert(response.fields.at(1) == "00000101");
 
     response = client.calculate(-5, 3);
+    // При недостаточной разрядности сервер должен вернуть ошибку вычисления.
     assert(!response.ok);
     assert(response.code == "CALC_FAILED");
     client.quit();
 
     netcourse::ClientConnection duplicate("127.0.0.1", port);
     duplicate.connectToServer();
+    // Повторная регистрация уже существующего пользователя должна завершиться ошибкой.
     response = duplicate.registerUser("user2", "pass2");
     assert(!response.ok);
     assert(response.code == "REGISTER_FAILED");
@@ -171,20 +181,24 @@ int main(int argc, char* argv[]) {
 
     netcourse::ClientConnection loginClient("127.0.0.1", port);
     loginClient.connectToServer();
+    // Проверка успешного входа существующего пользователя.
     response = loginClient.login("user2", "pass2");
     assert(response.ok);
     loginClient.quit();
 
     const auto rawBadRequest = netcourse::parseResponse(sendRaw("127.0.0.1", port, "CALC|1\n"));
+    // Проверка реакции сервера на некорректный формат команды.
     assert(!rawBadRequest.ok);
     assert(rawBadRequest.code == "BAD_REQUEST");
 
     const auto rawUnknown = netcourse::parseResponse(sendRaw("127.0.0.1", port, "PING\n"));
+    // Проверка реакции на неизвестную команду прикладного протокола.
     assert(!rawUnknown.ok);
     assert(rawUnknown.code == "UNKNOWN_COMMAND");
 
     assert(std::filesystem::exists(userDb));
     assert(std::filesystem::exists(logFile));
+    // Проверка, что сервер действительно сохраняет пользователей и ведет журнал.
     assert(containsLineWith(userDb, "user2:"));
     assert(containsLineWith(logFile, "User registered: user2"));
     assert(containsLineWith(logFile, "Calculation by user2"));
